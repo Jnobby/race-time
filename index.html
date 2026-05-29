@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Office Time Attack - Silverstone Garage & Ghost</title>
+    <title>Office Time Attack - Multi-Circuit Championship</title>
     <style>
         body {
             margin: 0;
@@ -24,10 +24,88 @@
             border-radius: 12px 12px 0 0;
             overflow: hidden;
             background: #222;
+            width: 1000px;
+            height: 600px;
         }
         canvas {
             display: block;
         }
+        
+        /* Menu Screens styling */
+        #introScreen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 15, 15, 0.96);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        #introScreen h1 {
+            font-size: 38px;
+            margin-bottom: 5px;
+            color: #ff3333;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 15px rgba(255,51,51,0.3);
+        }
+        #introScreen p {
+            color: #aaa;
+            margin-bottom: 35px;
+            font-size: 16px;
+        }
+        .track-grid {
+            display: flex;
+            gap: 25px;
+            width: 95%;
+            justify-content: center;
+        }
+        .track-card {
+            background: #1e1e1e;
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+            width: 270px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .track-card:hover {
+            border-color: #00e676;
+            transform: translateY(-8px);
+            background: #252525;
+            box-shadow: 0 8px 25px rgba(0,230,118,0.25);
+        }
+        .track-preview-canvas {
+            background: #0f0f0f;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: block;
+            border: 1px solid #222;
+        }
+        .track-card h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #00b0ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .track-desc {
+            font-size: 13px;
+            color: #ffea00;
+            margin: 5px 0 0 0;
+            font-style: italic;
+        }
+        .track-meta {
+            font-size: 12px;
+            color: #777;
+            margin-top: 8px;
+            border-top: 1px solid #2a2a2a;
+            padding-top: 8px;
+        }
+
+        /* Gameplay Running Overlay */
         #ui {
             position: absolute;
             top: 15px;
@@ -38,10 +116,11 @@
             text-transform: uppercase;
             letter-spacing: 1px;
             pointer-events: none;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             padding: 12px 18px;
             border-radius: 6px;
             border-left: 4px solid #00e676;
+            z-index: 5;
         }
         .ui-row { margin-bottom: 5px; }
         .ui-row:last-child { margin-bottom: 0; }
@@ -62,18 +141,41 @@
             display: none;
             pointer-events: none;
             letter-spacing: 1px;
+            z-index: 5;
         }
         #cornerName {
             position: absolute;
             top: 15px;
             right: 20px;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
             color: #ffea00;
-            background: rgba(0,0,0,0.6);
+            background: rgba(0,0,0,0.7);
             padding: 8px 15px;
             border-radius: 6px;
             pointer-events: none;
+            z-index: 5;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        #menuBtn {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: #555;
+            color: #fff;
+            border: none;
+            padding: 8px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+            z-index: 5;
+        }
+        #menuBtn:hover {
+            background: #777;
         }
         #resetUIBtn {
             position: absolute;
@@ -89,14 +191,14 @@
             cursor: pointer;
             transition: 0.2s;
             text-transform: uppercase;
+            z-index: 5;
         }
         #resetUIBtn:hover {
             background: #ff3333;
             color: #fff;
-            transform: scale(1.05);
         }
         
-        /* Shop Layout Styling */
+        /* Upgrade Hub Layout */
         #garageShop {
             width: 1000px;
             background: #1e1e1e;
@@ -160,6 +262,7 @@
             display: none;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
             animation: fadeUp 1.5s ease-out forwards;
+            z-index: 5;
         }
         @keyframes fadeUp {
             0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -170,6 +273,12 @@
 <body>
 
 <div id="gameContainer">
+    <div id="introScreen">
+        <h1>Select Your Circuit</h1>
+        <p>Choose a configuration profile below to match your car's setup</p>
+        <div class="track-grid" id="trackGrid"></div>
+    </div>
+
     <div id="ui">
         <div class="ui-row">Coins: <span id="wallet">0</span></div>
         <div class="ui-row">Best Lap: <span id="bestLap">--:--.--</span></div>
@@ -180,7 +289,8 @@
     <div id="cornerName">Hamilton Straight</div>
     <div id="status">OFF TRACK - PENALTY SPEED</div>
     <div id="lapFeedback"></div>
-    <button id="resetUIBtn" onclick="resetLap()">Reset Lap (R)</button>
+    <button id="menuBtn" onclick="returnToMenu()">Exit (M)</button>
+    <button id="resetUIBtn" onclick="resetLap()">Reset (R)</button>
 
     <canvas id="gameCanvas" width="1000" height="600"></canvas>
 </div>
@@ -207,6 +317,18 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+let isGameRunning = false;
+
+// Dynamic Track Geometry Data Storage
+let trackWaypoints = [];
+let checkpoints = [];
+let finishLineGate = {}; 
+let currentTrackWidth = 40;
+
+// Scenery Cache
+let grandstands = [];
+let calculatedSceneryTrees = [];
+
 // UI Elements
 const currentLapEl = document.getElementById('currentLap');
 const bestLapEl = document.getElementById('bestLap');
@@ -215,84 +337,246 @@ const statusEl = document.getElementById('status');
 const cornerNameEl = document.getElementById('cornerName');
 const walletEl = document.getElementById('wallet');
 const lapFeedbackEl = document.getElementById('lapFeedback');
+const introScreenEl = document.getElementById('introScreen');
+const trackGridEl = document.getElementById('trackGrid');
 
-// Currency & Upgrade Systems
+// Economy & Tune Systems
 let coins = 0;
 let isLapClean = true; 
 
 const upgrades = {
-    speed: { lvl: 1, max: 5, cost: 15, base: 2.0, step: 0.50 },
+    speed: { lvl: 1, max: 5, cost: 15, base: 2.1, step: 0.55 },
     accel: { lvl: 1, max: 5, cost: 10, base: 0.06, step: 0.02 }, 
     handling: { lvl: 1, max: 5, cost: 10, base: 0.05, step: 0.015 }
 };
 
-// Timing State
-let startTime = Date.now();
+// Timing Mechanics
+let startTime = 0;
 let lastLapTime = null;
 let bestLapTime = null;
-const totalCheckpoints = 4;
 let passedCheckpoints = new Set();
+let gateCrossedLastFrame = false; 
 
-// Ghost System Telemetry Data Arrays
+// Ghost Analytics arrays
 let currentLapHistory = [];  
 let bestLapHistory = [];     
 let ghostFrameIndex = 0;     
 
-// Input
 const keys = { w: false, a: false, s: false, d: false };
 
-// --- TRUE SILVERSTONE LAYOUT VERTICES ---
-const trackWaypoints = [
-    { x: 330, y: 500, name: "Hamilton Straight" }, 
-    { x: 500, y: 510, name: "Abbey" },
-    { x: 580, y: 540, name: "Farm Curve" },
-    { x: 620, y: 450, name: "Village" },
-    { x: 550, y: 410, name: "The Loop" },
-    { x: 490, y: 440, name: "Aintree" },
-    { x: 220, y: 310, name: "Wellington Straight" },
-    { x: 120, y: 260, name: "Brooklands" },
-    { x: 100, y: 170, name: "Luffield" },
-    { x: 190, y: 140, name: "Woodcote" },
-    { x: 380, y: 140, name: "National Pit Straight" },
-    { x: 560, y: 90, name: "Copse" },
-    { x: 690, y: 100, name: "Maggots" },
-    { x: 770, y: 150, name: "Becketts" },
-    { x: 800, y: 210, name: "Chapel" },
-    { x: 650, y: 380, name: "Hangar Straight" },
-    { x: 540, y: 450, name: "Stowe" },
-    { x: 390, y: 370, name: "Vale" },
-    { x: 280, y: 420, name: "Club Corner" }
-];
-const TRACK_WIDTH = 40; 
-
-const checkpoints = [
-    { x: 550, y: 410, r: 40, id: 1 }, 
-    { x: 100, y: 170, r: 40, id: 2 }, 
-    { x: 560, y: 90, r: 40, id: 3 }, 
-    { x: 800, y: 210, r: 40, id: 4 }  
-];
-
-const finishLine = { x: 320, y: 475, w: 10, h: 50 };
-
-// Car Attributes (rebalanced dimension ratios to match the F1 profile aspect ratio)
+// Player Physics Model
 const car = {
-    x: 330,
-    y: 500,
-    w: 24, // Length of car
-    h: 12, // Width across wings
-    angle: 0.1, 
-    speed: 0,
-    offTrackMaxSpeed: 0.7, 
-    decel: 0.05,
-    vx: 0,
-    vy: 0,
-    isOffTrack: false
+    x: 0, y: 0,
+    w: 24, h: 12, 
+    angle: 0, speed: 0,
+    offTrackMaxSpeed: 0.7, decel: 0.05,
+    vx: 0, vy: 0, isOffTrack: false
 };
+
+function generateDistinctTracks() {
+    return [
+        // TRACK 1: HIGH SPEED SUPER OVAL RING
+        {
+            id: 0,
+            name: "Monza Oval Ring",
+            desc: "Ultra-wide straights. Maximize top speed.",
+            width: 52,
+            waypoints: [
+                { x: 200, y: 480, name: "Main Straight" },
+                { x: 500, y: 490, name: "Kink" },
+                { x: 820, y: 450, name: "Curva Grande" },
+                { x: 860, y: 300, name: "Ascari Banking" },
+                { x: 780, y: 140, name: "Biassono Sweep" },
+                { x: 500, y: 110, name: "Back Straight" },
+                { x: 160, y: 150, name: "Lesmo Curve" },
+                { x: 120, y: 320, name: "Parabolica entry" }
+            ]
+        },
+        // TRACK 2: TECHNICAL STREET CIRCUIT
+        {
+            id: 1,
+            name: "Marina Bay Street",
+            desc: "Narrow, twisty, and claustrophobic.",
+            width: 32,
+            waypoints: [
+                { x: 180, y: 500, name: "Pit Straight" },
+                { x: 420, y: 510, name: "Turn 1 Chicane" },
+                { x: 440, y: 410, name: "Turn 2 Apex" },
+                { x: 320, y: 390, name: "Hotel Section" },
+                { x: 300, y: 290, name: "The Fountain Sharp Left" },
+                { x: 520, y: 270, name: "Bridge Burst" },
+                { x: 580, y: 180, name: "Bay Hairpin" },
+                { x: 740, y: 160, name: "Esplanade Turn" },
+                { x: 880, y: 260, name: "East Tunnel" },
+                { x: 840, y: 460, name: "Sling Hairpin" },
+                { x: 640, y: 440, name: "Complex Left" },
+                { x: 620, y: 340, name: "Complex Right" },
+                { x: 120, y: 220, name: "Grandstand Sweeper" },
+                { x: 100, y: 380, name: "Final Corner" }
+            ]
+        },
+        // TRACK 3: CLASSIC BALANCE GRAND PRIX
+        {
+            id: 2,
+            name: "Spa-Francorchamps Apex",
+            desc: "Long sectors, sweeps, and a heavy hairpin.",
+            width: 40,
+            waypoints: [
+                { x: 250, y: 500, name: "Start Straight" },
+                { x: 550, y: 510, name: "Eau Rouge Sweep" },
+                { x: 880, y: 440, name: "Raidillon Climb" },
+                { x: 850, y: 220, name: "Kemmel Straight" },
+                { x: 600, y: 180, name: "Les Combes" },
+                { x: 480, y: 240, name: "Malmedy" },
+                { x: 420, y: 120, name: "Rivage Hairpin" },
+                { x: 220, y: 140, name: "Pouhon Double-Left" },
+                { x: 90,  y: 240, name: "Fagnes Corner" },
+                { x: 120, y: 380, name: "Bus Stop Chicane" }
+            ]
+        }
+    ];
+}
+
+function initializeSelectedCircuit(selectedTrack) {
+    trackWaypoints = selectedTrack.waypoints;
+    currentTrackWidth = selectedTrack.width;
+
+    // 1. ALIGNED AND ROTATED FINISH LINE GATES
+    const p1 = trackWaypoints[0];
+    const p2 = trackWaypoints[1];
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const straightAngle = Math.atan2(dy, dx);
+
+    const midX = p1.x + dx * 0.35;
+    const midY = p1.y + dy * 0.35;
+    const perpAngle = straightAngle + Math.PI / 2;
+    const extentX = Math.cos(perpAngle) * (currentTrackWidth / 2 + 4);
+    const extentY = Math.sin(perpAngle) * (currentTrackWidth / 2 + 4);
+
+    finishLineGate = {
+        midX: midX, midY: midY,
+        x1: midX - extentX, y1: midY - extentY, 
+        x2: midX + extentX, y2: midY + extentY, 
+        angle: straightAngle
+    };
+
+    // Place vehicle behind finish line gate facing forward
+    car.x = midX - Math.cos(straightAngle) * 35;
+    car.y = midY - Math.sin(straightAngle) * 35;
+    car.angle = straightAngle;
+    car.speed = 0; car.vx = 0; car.vy = 0;
+
+    // 2. ADAPTIVE SPLIT CHECKPOINTS
+    checkpoints = [];
+    const step = Math.floor(trackWaypoints.length / 4);
+    for (let i = 1; i <= 4; i++) {
+        let index = Math.min(i * step, trackWaypoints.length - 1);
+        let wp = trackWaypoints[index];
+        checkpoints.push({ x: wp.x, y: wp.y, r: currentTrackWidth + 10, id: i });
+    }
+
+    // 3. ADAPTIVE ENVIRONMENT LAYOUT SCENERY SEEDING
+    grandstands = [];
+    calculatedSceneryTrees = [];
+
+    // Place viewing grandstands on the outside margins of corner segments
+    for (let s = 1; s < trackWaypoints.length; s += 3) {
+        let currentWp = trackWaypoints[s];
+        let nextWp = trackWaypoints[(s + 1) % trackWaypoints.length];
+        let segAng = Math.atan2(nextWp.y - currentWp.y, nextWp.x - currentWp.x);
+        
+        grandstands.push({
+            x: currentWp.x + Math.cos(segAng + Math.PI/2) * (currentTrackWidth + 22),
+            y: currentWp.y + Math.sin(segAng + Math.PI/2) * (currentTrackWidth + 22),
+            w: 80, h: 18, angle: segAng
+        });
+    }
+
+    // Dense vs scattered forest parameters based on track profile type
+    const treeCount = selectedTrack.id === 1 ? 40 : 180; // Fewer trees for street track, more for forest tracks
+    for (let i = 0; i < treeCount; i++) {
+        let tx = Math.random() * 1000;
+        let ty = Math.random() * 600;
+        
+        // Ensure tree coordinates do not spawn overlapping straight inside driving track surfaces
+        ctx.lineWidth = currentTrackWidth + 30;
+        drawTrackPath(ctx);
+        if (!ctx.isPointInStroke(tx, ty)) {
+            calculatedSceneryTrees.push({
+                x: tx, y: ty,
+                size: 5 + Math.random() * 8
+            });
+        }
+    }
+
+    introScreenEl.style.display = 'none';
+    isGameRunning = true;
+    startTime = Date.now();
+    passedCheckpoints.clear();
+    gateCrossedLastFrame = false;
+    currentLapHistory = [];
+    bestLapHistory = [];
+    bestLapTime = null;
+    bestLapEl.innerText = "--:--.--";
+    lastLapEl.innerText = "--:--.--";
+}
+
+function buildMenuInteractivity() {
+    const tracksPool = generateDistinctTracks();
+    trackGridEl.innerHTML = "";
+
+    tracksPool.forEach(tr => {
+        const card = document.createElement('div');
+        card.className = 'track-card';
+        card.innerHTML = `
+            <h3>${tr.name}</h3>
+            <div class="track-desc">${tr.desc}</div>
+            <canvas id="prevCanvas_${tr.id}" class="track-preview-canvas" width="230" height="130"></canvas>
+            <div class="track-meta">Track Width: ${tr.width}px &bull; Points: ${tr.waypoints.length}</div>
+        `;
+        
+        card.onclick = () => initializeSelectedCircuit(tr);
+        trackGridEl.appendChild(card);
+
+        const pCanvas = document.getElementById(`prevCanvas_${tr.id}`);
+        const pCtx = pCanvas.getContext('2d');
+        
+        pCtx.fillStyle = '#0f0f0f';
+        pCtx.fillRect(0,0,230,130);
+
+        pCtx.save();
+        pCtx.strokeStyle = '#333';
+        pCtx.lineWidth = tr.width * (230/1000);
+        pCtx.lineCap = "round"; pCtx.lineJoin = "round";
+        pCtx.scale(230 / 1000, 130 / 600); 
+        
+        pCtx.beginPath();
+        pCtx.moveTo(tr.waypoints[0].x, tr.waypoints[0].y);
+        for(let w=1; w<tr.waypoints.length; w++) {
+            pCtx.lineTo(tr.waypoints[w].x, tr.waypoints[w].y);
+        }
+        pCtx.closePath();
+        pCtx.stroke();
+        
+        pCtx.strokeStyle = '#00b0ff';
+        pCtx.lineWidth = 3;
+        pCtx.stroke();
+        pCtx.restore();
+    });
+}
+
+function returnToMenu() {
+    isGameRunning = false;
+    introScreenEl.style.display = 'flex';
+    buildMenuInteractivity();
+}
 
 // Controls listeners
 window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true;
     if (e.key.toLowerCase() === 'r') resetLap(); 
+    if (e.key.toLowerCase() === 'm') returnToMenu(); 
 });
 window.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false;
@@ -316,28 +600,40 @@ function drawTrackPath(context) {
 }
 
 function resetLap() {
-    car.x = 330;
-    car.y = 500;
-    car.speed = 0;
-    car.vx = 0;
-    car.vy = 0;
-    car.angle = 0.1;
+    if (!isGameRunning) return;
+    
+    const straightAngle = finishLineGate.angle;
+    car.x = finishLineGate.midX - Math.cos(straightAngle) * 35;
+    car.y = finishLineGate.midY - Math.sin(straightAngle) * 35;
+    car.angle = straightAngle;
+    car.speed = 0; car.vx = 0; car.vy = 0;
     
     startTime = Date.now();
     passedCheckpoints.clear();
     currentLapHistory = [];
     ghostFrameIndex = 0;
     isLapClean = true;
+    gateCrossedLastFrame = true; 
     
     showFeedback("LAP RESET", "#00b0ff");
 }
 
+function checkLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+    const det = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
+    if (det === 0) return false; 
+    const lambda = ((y4 - y3) * (x4 - x1) + (x3 - x4) * (y4 - y1)) / det;
+    const gamma = ((y1 - y2) * (x4 - x1) + (x2 - x1) * (y4 - y1)) / det;
+    return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+}
+
 function updatePhysics() {
+    if (!isGameRunning) return;
+
     const currentMaxSpeed = upgrades.speed.base + ((upgrades.speed.lvl - 1) * upgrades.speed.step);
     const currentAccel = upgrades.accel.base + ((upgrades.accel.lvl - 1) * upgrades.accel.step);
     const currentHandling = upgrades.handling.base + ((upgrades.handling.lvl - 1) * upgrades.handling.step);
 
-    ctx.lineWidth = TRACK_WIDTH;
+    ctx.lineWidth = currentTrackWidth;
     drawTrackPath(ctx);
     car.isOffTrack = !ctx.isPointInStroke(car.x, car.y);
 
@@ -361,15 +657,17 @@ function updatePhysics() {
 
     if (Math.abs(car.speed) > 0.05) {
         const turnDir = car.speed > 0 ? 1 : -1;
-        const dynamicHandling = car.isOffTrack ? currentHandling * 1.5 : currentHandling; 
+        const dynamicHandling = car.isOffTrack ? currentHandling * 1.4 : currentHandling; 
         
         if (keys.a) car.angle -= dynamicHandling * turnDir;
         if (keys.d) car.angle += dynamicHandling * turnDir;
     }
 
+    const oldX = car.x;
+    const oldY = car.y;
+
     car.vx = Math.cos(car.angle) * car.speed;
     car.vy = Math.sin(car.angle) * car.speed;
-
     car.x += car.vx;
     car.y += car.vy;
 
@@ -392,40 +690,48 @@ function updatePhysics() {
 
     checkpoints.forEach(cp => {
         const dist = Math.hypot(car.x - cp.x, car.y - cp.y);
-        if (dist < cp.r) {
-            passedCheckpoints.add(cp.id);
-        }
+        if (dist < cp.r) passedCheckpoints.add(cp.id);
     });
 
-    if (car.x >= finishLine.x && car.x <= finishLine.x + finishLine.w &&
-        car.y >= finishLine.y && car.y <= finishLine.y + finishLine.h) {
-        
-        if (passedCheckpoints.size === totalCheckpoints) {
-            const lapTime = Date.now() - startTime;
-            lastLapTime = lapTime;
-            lastLapEl.innerText = formatTime(lastLapTime);
+    const crossedGateThisFrame = checkLineIntersection(
+        oldX, oldY, car.x, car.y,
+        finishLineGate.x1, finishLineGate.y1, finishLineGate.x2, finishLineGate.y2
+    );
 
-            if (isLapClean) {
-                coins += 10;
-                walletEl.innerText = coins;
-                showFeedback("+10 COINS (CLEAN LAP)", "#ffd700");
+    if (crossedGateThisFrame) {
+        if (!gateCrossedLastFrame) {
+            if (passedCheckpoints.size === 4) {
+                const lapTime = Date.now() - startTime;
+                lastLapTime = lapTime;
+                lastLapEl.innerText = formatTime(lastLapTime);
+
+                if (isLapClean) {
+                    coins += 10;
+                    walletEl.innerText = coins;
+                    showFeedback("+10 COINS (CLEAN LAP)", "#ffd700");
+                } else {
+                    showFeedback("DIRTY LAP - NO COINS", "#ff3333");
+                }
+
+                if (!bestLapTime || lapTime < bestLapTime) {
+                    bestLapTime = lapTime;
+                    bestLapEl.innerText = formatTime(bestLapTime);
+                    bestLapHistory = [...currentLapHistory];
+                }
+                
+                startTime = Date.now();
+                passedCheckpoints.clear();
+                currentLapHistory = [];
+                ghostFrameIndex = 0;
+                isLapClean = true; 
+                updateShopUI();
             } else {
-                showFeedback("DIRTY LAP - NO COINS", "#ff3333");
+                showFeedback("MISSED CHECKPOINTS", "#ff9100");
             }
-
-            if (!bestLapTime || lapTime < bestLapTime) {
-                bestLapTime = lapTime;
-                bestLapEl.innerText = formatTime(bestLapTime);
-                bestLapHistory = [...currentLapHistory];
-            }
-            
-            startTime = Date.now();
-            passedCheckpoints.clear();
-            currentLapHistory = [];
-            ghostFrameIndex = 0;
-            isLapClean = true; 
-            updateShopUI();
         }
+        gateCrossedLastFrame = true;
+    } else {
+        gateCrossedLastFrame = false;
     }
 
     const currentElapsed = Date.now() - startTime;
@@ -436,7 +742,6 @@ function showFeedback(text, color) {
     lapFeedbackEl.innerText = text;
     lapFeedbackEl.style.color = color;
     lapFeedbackEl.style.display = 'block';
-    
     lapFeedbackEl.style.animation = 'none';
     lapFeedbackEl.offsetHeight; 
     lapFeedbackEl.style.animation = null;
@@ -471,33 +776,25 @@ function updateShopUI() {
     }
 }
 
-// Custom function to draw your vector F1 design
 function drawF1Car(x, y, angle, primaryColor, isGhost) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
-
-    // Dynamic global alpha overlay for the Ghost car vs the live racer
     ctx.globalAlpha = isGhost ? 0.25 : 1.0;
 
-    const w = car.w;
-    const h = car.h;
+    const w = car.w; const h = car.h;
 
-    // 1. BLACK WHEELS AND AXLES (Drawn first so body sits cleanly on top)
     ctx.fillStyle = '#000000';
-    if (isGhost) ctx.fillStyle = 'rgba(0, 176, 255, 0.4)'; // Blue tinted wheels for ghost
+    if (isGhost) ctx.fillStyle = 'rgba(0, 176, 255, 0.4)'; 
 
-    // Front Axle & Wheels
-    ctx.fillRect(w * 0.15, -h * 0.65, w * 0.18, h * 0.3); // Front Left Wheel
-    ctx.fillRect(w * 0.15, h * 0.35, w * 0.18, h * 0.3);  // Front Right Wheel
-    ctx.fillRect(w * 0.22, -h * 0.4, w * 0.04, h * 0.8);  // Front Structural Axle
+    ctx.fillRect(w * 0.15, -h * 0.65, w * 0.18, h * 0.3); 
+    ctx.fillRect(w * 0.15, h * 0.35, w * 0.18, h * 0.3);  
+    ctx.fillRect(w * 0.22, -h * 0.4, w * 0.04, h * 0.8);  
 
-    // Rear Axle & Wheels
-    ctx.fillRect(-w * 0.4, -h * 0.65, w * 0.22, h * 0.35); // Rear Left Wheel
-    ctx.fillRect(-w * 0.4, h * 0.3, w * 0.22, h * 0.35);   // Rear Right Wheel
-    ctx.fillRect(-w * 0.3, -h * 0.4, w * 0.04, h * 0.8);   // Rear Structural Axle
+    ctx.fillRect(-w * 0.4, -h * 0.65, w * 0.22, h * 0.35); 
+    ctx.fillRect(-w * 0.4, h * 0.3, w * 0.22, h * 0.35);   
+    ctx.fillRect(-w * 0.3, -h * 0.4, w * 0.04, h * 0.8);   
 
-    // 2. MAIN LIVERY BODYWORK
     ctx.fillStyle = primaryColor;
     if (isGhost) {
         ctx.fillStyle = 'rgba(0, 176, 255, 0.2)';
@@ -505,46 +802,30 @@ function drawF1Car(x, y, angle, primaryColor, isGhost) {
         ctx.lineWidth = 1;
     }
 
-    // Front Nose Nosecone Nose component
     ctx.beginPath();
     ctx.arc(w * 0.4, 0, h * 0.15, 0, Math.PI * 2);
     ctx.fill();
     if (isGhost) ctx.stroke();
 
-    // Central Structural Body Spine
     ctx.fillRect(-w * 0.4, -h * 0.15, w * 0.8, h * 0.3);
     if (isGhost) ctx.strokeRect(-w * 0.4, -h * 0.15, w * 0.8, h * 0.3);
 
-    // Front Wing
     ctx.beginPath();
     ctx.roundRect(w * 0.3, -h * 0.55, w * 0.08, h * 1.1, h * 0.1);
     ctx.fill();
     if (isGhost) ctx.stroke();
 
-    // Aerodynamic Triangular Sidepods
     ctx.beginPath();
-    ctx.moveTo(w * 0.15, -h * 0.15); // Front intersection point
-    ctx.lineTo(w * 0.15, -h * 0.4);  // Outward wide flare
-    ctx.lineTo(-w * 0.2, -h * 0.4);  // Straight edge back
-    ctx.lineTo(-w * 0.2, -h * 0.15); // Inner return block
-    ctx.closePath();
-    ctx.fill();
-    if (isGhost) ctx.stroke();
+    ctx.moveTo(w * 0.15, -h * 0.15); ctx.lineTo(w * 0.15, -h * 0.4); ctx.lineTo(-w * 0.2, -h * 0.4); ctx.lineTo(-w * 0.2, -h * 0.15);
+    ctx.closePath(); ctx.fill(); if (isGhost) ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(w * 0.15, h * 0.15);
-    ctx.lineTo(w * 0.15, h * 0.4);
-    ctx.lineTo(-w * 0.2, h * 0.4);
-    ctx.lineTo(-w * 0.2, h * 0.15);
-    ctx.closePath();
-    ctx.fill();
-    if (isGhost) ctx.stroke();
+    ctx.moveTo(w * 0.15, h * 0.15); ctx.lineTo(w * 0.15, h * 0.4); ctx.lineTo(-w * 0.2, h * 0.4); ctx.lineTo(-w * 0.2, h * 0.15);
+    ctx.closePath(); ctx.fill(); if (isGhost) ctx.stroke();
 
-    // Rear Wing Base Block
     ctx.fillRect(-w * 0.5, -h * 0.5, w * 0.12, h * 1.0);
     if (isGhost) ctx.strokeRect(-w * 0.5, -h * 0.5, w * 0.12, h * 1.0);
 
-    // 3. GLOSS BLACK COCKPIT POD
     ctx.fillStyle = '#000000';
     if (isGhost) ctx.fillStyle = 'rgba(0, 176, 255, 0.5)';
     ctx.beginPath();
@@ -555,59 +836,94 @@ function drawF1Car(x, y, angle, primaryColor, isGhost) {
 }
 
 function draw() {
+    if (!isGameRunning) return;
+
+    // Background Grass
     ctx.fillStyle = '#1b5e20';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Kerbs edge lines
+    // Static environmental Tree foliage
+    calculatedSceneryTrees.forEach(tree => {
+        ctx.fillStyle = '#114411';
+        ctx.beginPath(); ctx.arc(tree.x + 2, tree.y + 3, tree.size, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#2e7d32';
+        ctx.beginPath(); ctx.arc(tree.x, tree.y, tree.size, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#4caf50';
+        ctx.beginPath(); ctx.arc(tree.x - (tree.size * 0.15), tree.y - (tree.size * 0.15), tree.size * 0.5, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Grandstand Structures
+    grandstands.forEach(gs => {
+        ctx.save();
+        ctx.translate(gs.x, gs.y);
+        ctx.rotate(gs.angle);
+
+        ctx.fillStyle = '#424242';
+        ctx.fillRect(-gs.w / 2, -gs.h / 2, gs.w, gs.h);
+        ctx.strokeStyle = '#eeeeee';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-gs.w / 2, -gs.h / 2, gs.w, gs.h);
+
+        const rowCount = 3;
+        const rowHeight = gs.h / rowCount;
+        const colors = ['#e53935', '#00b0ff', '#ffeb3b', '#ffffff'];
+
+        for (let r = 0; r < rowCount; r++) {
+            const currentY = -gs.h / 2 + (r * rowHeight);
+            ctx.fillStyle = '#616161';
+            ctx.fillRect(-gs.w / 2 + 2, currentY + 1, gs.w - 4, 2);
+
+            for (let seatX = -gs.w / 2 + 6; seatX < gs.w / 2 - 6; seatX += 5) {
+                if (((seatX + r) * 7) % 10 > 2) {
+                    ctx.fillStyle = colors[Math.abs(Math.floor(seatX + r)) % colors.length];
+                    ctx.fillRect(seatX, currentY + 2, 3, 3);
+                }
+            }
+        }
+        ctx.restore();
+    });
+
+    // Rumble Curbs Layout
     ctx.save();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = TRACK_WIDTH + 6;
-    ctx.setLineDash([15, 15]);
-    drawTrackPath(ctx);
-    ctx.stroke();
-    ctx.strokeStyle = '#d32f2f';
-    ctx.lineWidth = TRACK_WIDTH + 6;
-    ctx.setLineDash([15, 15]);
-    ctx.lineDashOffset = 15;
-    drawTrackPath(ctx);
-    ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = currentTrackWidth + 6; ctx.setLineDash([15, 15]);
+    drawTrackPath(ctx); ctx.stroke();
+    ctx.strokeStyle = '#d32f2f'; ctx.lineWidth = currentTrackWidth + 6; ctx.setLineDash([15, 15]); ctx.lineDashOffset = 15;
+    drawTrackPath(ctx); ctx.stroke();
     ctx.restore();
 
-    // Asphalt Main Surface
+    // Core Asphalt Surface
     ctx.save();
     ctx.strokeStyle = '#333333';
-    ctx.lineWidth = TRACK_WIDTH;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    drawTrackPath(ctx);
-    ctx.stroke();
-    ctx.restore();
-
-    // Racing line guide
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = currentTrackWidth;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
     drawTrackPath(ctx);
     ctx.stroke();
     ctx.restore();
 
     // Checkered Finish Gate
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(finishLine.x, finishLine.y, finishLine.w, finishLine.h);
-    ctx.fillStyle = '#000';
-    for(let i=0; i<finishLine.h; i+=5) {
-        if(i % 10 === 0) ctx.fillRect(finishLine.x, finishLine.y + i, finishLine.w/2, 5);
-        else ctx.fillRect(finishLine.x + finishLine.w/2, finishLine.y + i, finishLine.w/2, 5);
-    }
+    ctx.save();
+    ctx.translate(finishLineGate.midX, finishLineGate.midY);
+    ctx.rotate(finishLineGate.angle);
 
-    // --- DRAW GHOST CAR (Using your custom F1 blueprint layout in transparent blue) ---
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-4, -currentTrackWidth/2 - 2, 8, currentTrackWidth + 4);
+    
+    ctx.fillStyle = '#000000';
+    const blockSz = 4;
+    for (let gy = -currentTrackWidth/2 - 2; gy < currentTrackWidth/2 + 2; gy += blockSz) {
+        ctx.fillRect(-4, gy, blockSz, blockSz);
+        ctx.fillRect(0, gy + blockSz/2, blockSz, blockSz);
+    }
+    ctx.restore();
+
+    // Draw Ghost
     if (bestLapHistory.length > 0 && bestLapHistory[ghostFrameIndex]) {
         const ghost = bestLapHistory[ghostFrameIndex];
         drawF1Car(ghost.x, ghost.y, ghost.angle, '', true);
     }
 
-    // --- DRAW ACTIVE PLAYER CAR (Using your custom F1 blueprint layout in racing colors) ---
-    const activeColor = car.isOffTrack ? '#ef5350' : '#ff0000'; // Pure F1 red on track, light warning red on grass
+    // Draw Live Competitor Chassis
+    const activeColor = car.isOffTrack ? '#ef5350' : '#ff0000'; 
     drawF1Car(car.x, car.y, car.angle, activeColor, false);
 }
 
@@ -617,8 +933,9 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// Initial Kickoff Setup
+// Boot setup script routines
 updateShopUI();
+buildMenuInteractivity();
 gameLoop();
 </script>
 
