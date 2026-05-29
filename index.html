@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Office Time Attack - Silverstone Garage</title>
+    <title>Office Time Attack - Silverstone Garage & Ghost</title>
     <style>
         body {
             margin: 0;
@@ -74,6 +74,26 @@
             padding: 8px 15px;
             border-radius: 6px;
             pointer-events: none;
+        }
+        #resetUIBtn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: #e57373;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+        #resetUIBtn:hover {
+            background: #ff3333;
+            color: #fff;
+            transform: scale(1.05);
         }
         
         /* Shop Layout Styling */
@@ -160,6 +180,7 @@
     <div id="cornerName">Hamilton Straight</div>
     <div id="status">OFF TRACK - PENALTY SPEED</div>
     <div id="lapFeedback"></div>
+    <button id="resetUIBtn" onclick="resetLap()">Reset Lap (R)</button>
 
     <canvas id="gameCanvas" width="1000" height="600"></canvas>
 </div>
@@ -197,11 +218,11 @@ const lapFeedbackEl = document.getElementById('lapFeedback');
 
 // Currency & Upgrade Systems
 let coins = 0;
-let isLapClean = true; // Flips to false if you touch the grass
+let isLapClean = true; 
 
 const upgrades = {
     speed: { lvl: 1, max: 5, cost: 15, base: 2.0, step: 0.50 },
-    accel: { lvl: 1, max: 5, cost: 10, base: 0.04, step: 0.02 },
+    accel: { lvl: 1, max: 5, cost: 10, base: 0.06, step: 0.02 }, 
     handling: { lvl: 1, max: 5, cost: 10, base: 0.05, step: 0.015 }
 };
 
@@ -211,6 +232,11 @@ let lastLapTime = null;
 let bestLapTime = null;
 const totalCheckpoints = 4;
 let passedCheckpoints = new Set();
+
+// Ghost System Telemetry Data Arrays
+let currentLapHistory = [];  // Records active line frame-by-frame
+let bestLapHistory = [];     // Stored blueprint of the winning lap record
+let ghostFrameIndex = 0;     // Current tracking playback point for ghost
 
 // Input
 const keys = { w: false, a: false, s: false, d: false };
@@ -256,7 +282,7 @@ const car = {
     h: 9,
     angle: 0.1, 
     speed: 0,
-    offTrackMaxSpeed: 0.3, 
+    offTrackMaxSpeed: 0.7, 
     decel: 0.05,
     vx: 0,
     vy: 0,
@@ -266,6 +292,7 @@ const car = {
 // Controls listeners
 window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true;
+    if (e.key.toLowerCase() === 'r') resetLap(); // Trigger manual recovery
 });
 window.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false;
@@ -288,8 +315,25 @@ function drawTrackPath(context) {
     context.closePath();
 }
 
+// Reset Lap functionality without clearing currency values
+function resetLap() {
+    car.x = 330;
+    car.y = 500;
+    car.speed = 0;
+    car.vx = 0;
+    car.vy = 0;
+    car.angle = 0.1;
+    
+    startTime = Date.now();
+    passedCheckpoints.clear();
+    currentLapHistory = [];
+    ghostFrameIndex = 0;
+    isLapClean = true;
+    
+    showFeedback("LAP RESET", "#00b0ff");
+}
+
 function updatePhysics() {
-    // Dynamic Stats calculated directly from Upgrade Levels
     const currentMaxSpeed = upgrades.speed.base + ((upgrades.speed.lvl - 1) * upgrades.speed.step);
     const currentAccel = upgrades.accel.base + ((upgrades.accel.lvl - 1) * upgrades.accel.step);
     const currentHandling = upgrades.handling.base + ((upgrades.handling.lvl - 1) * upgrades.handling.step);
@@ -302,7 +346,7 @@ function updatePhysics() {
     
     if (car.isOffTrack) {
         statusEl.style.display = 'block';
-        isLapClean = false; // Ruined clean status for this lap
+        isLapClean = false; 
     } else {
         statusEl.style.display = 'none';
     }
@@ -317,11 +361,13 @@ function updatePhysics() {
         if (Math.abs(car.speed) < 0.01) car.speed = 0;
     }
 
-    // Steering
+    // Steering Logic with Grass Recovery Compensation
     if (Math.abs(car.speed) > 0.05) {
         const turnDir = car.speed > 0 ? 1 : -1;
-        if (keys.a) car.angle -= currentHandling * turnDir;
-        if (keys.d) car.angle += currentHandling * turnDir;
+        const dynamicHandling = car.isOffTrack ? currentHandling * 1.5 : currentHandling; 
+        
+        if (keys.a) car.angle -= dynamicHandling * turnDir;
+        if (keys.d) car.angle += dynamicHandling * turnDir;
     }
 
     car.vx = Math.cos(car.angle) * car.speed;
@@ -329,6 +375,14 @@ function updatePhysics() {
 
     car.x += car.vx;
     car.y += car.vy;
+
+    // Log tracking telemetry data for the active run frame loop
+    currentLapHistory.push({ x: car.x, y: car.y, angle: car.angle });
+
+    // Step up ghost replay index counter
+    if (bestLapHistory.length > 0 && ghostFrameIndex < bestLapHistory.length - 1) {
+        ghostFrameIndex++;
+    }
 
     // Track Dynamic Corner Names
     let closestWaypoint = trackWaypoints[0];
@@ -368,15 +422,21 @@ function updatePhysics() {
                 showFeedback("DIRTY LAP - NO COINS", "#ff3333");
             }
 
+            // Verify if record has been set
             if (!bestLapTime || lapTime < bestLapTime) {
                 bestLapTime = lapTime;
                 bestLapEl.innerText = formatTime(bestLapTime);
+                
+                // Commit telemetry history database array clone to ghost system memory map
+                bestLapHistory = [...currentLapHistory];
             }
             
-            // Reset lap context
+            // Clear layout run configs
             startTime = Date.now();
             passedCheckpoints.clear();
-            isLapClean = true; // reset tracker for next lap
+            currentLapHistory = [];
+            ghostFrameIndex = 0;
+            isLapClean = true; 
             updateShopUI();
         }
     }
@@ -390,7 +450,6 @@ function showFeedback(text, color) {
     lapFeedbackEl.style.color = color;
     lapFeedbackEl.style.display = 'block';
     
-    // Reset DOM animation node trick
     lapFeedbackEl.style.animation = 'none';
     lapFeedbackEl.offsetHeight; 
     lapFeedbackEl.style.animation = null;
@@ -401,7 +460,7 @@ function buyUpgrade(type) {
     if (coins >= item.cost && item.lvl < item.max) {
         coins -= item.cost;
         item.lvl++;
-        item.cost += 10; // increase cost incrementally for balance
+        item.cost += 10; 
         walletEl.innerText = coins;
         updateShopUI();
     }
@@ -471,7 +530,23 @@ function draw() {
         else ctx.fillRect(finishLine.x + finishLine.w/2, finishLine.y + i, finishLine.w/2, 5);
     }
 
-    // Car Body Render
+    // --- DRAW GHOST CAR (IF RECORD EXISTS) ---
+    if (bestLapHistory.length > 0 && bestLapHistory[ghostFrameIndex]) {
+        const ghost = bestLapHistory[ghostFrameIndex];
+        ctx.save();
+        ctx.translate(ghost.x, ghost.y);
+        ctx.rotate(ghost.angle);
+        
+        // Semi-transparent overlay styling for ghost chassis
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; 
+        ctx.strokeStyle = 'rgba(0, 176, 255, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.fillRect(-car.w / 2, -car.h / 2, car.w, car.h);
+        ctx.strokeRect(-car.w / 2, -car.h / 2, car.w, car.h);
+        ctx.restore();
+    }
+
+    // --- DRAW ACTIVE PLAYER CAR ---
     ctx.save();
     ctx.translate(car.x, car.y);
     ctx.rotate(car.angle);
