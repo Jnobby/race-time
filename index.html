@@ -234,9 +234,9 @@ const totalCheckpoints = 4;
 let passedCheckpoints = new Set();
 
 // Ghost System Telemetry Data Arrays
-let currentLapHistory = [];  // Records active line frame-by-frame
-let bestLapHistory = [];     // Stored blueprint of the winning lap record
-let ghostFrameIndex = 0;     // Current tracking playback point for ghost
+let currentLapHistory = [];  
+let bestLapHistory = [];     
+let ghostFrameIndex = 0;     
 
 // Input
 const keys = { w: false, a: false, s: false, d: false };
@@ -274,12 +274,12 @@ const checkpoints = [
 
 const finishLine = { x: 320, y: 475, w: 10, h: 50 };
 
-// Car Attributes linked to baseline upgrades
+// Car Attributes (rebalanced dimension ratios to match the F1 profile aspect ratio)
 const car = {
     x: 330,
     y: 500,
-    w: 16,
-    h: 9,
+    w: 24, // Length of car
+    h: 12, // Width across wings
     angle: 0.1, 
     speed: 0,
     offTrackMaxSpeed: 0.7, 
@@ -292,7 +292,7 @@ const car = {
 // Controls listeners
 window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true;
-    if (e.key.toLowerCase() === 'r') resetLap(); // Trigger manual recovery
+    if (e.key.toLowerCase() === 'r') resetLap(); 
 });
 window.addEventListener('keyup', (e) => {
     if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false;
@@ -315,7 +315,6 @@ function drawTrackPath(context) {
     context.closePath();
 }
 
-// Reset Lap functionality without clearing currency values
 function resetLap() {
     car.x = 330;
     car.y = 500;
@@ -351,7 +350,6 @@ function updatePhysics() {
         statusEl.style.display = 'none';
     }
 
-    // Acceleration & Braking
     if (keys.w) {
         car.speed = Math.min(car.speed + currentAccel, allowedMaxSpeed);
     } else if (keys.s) {
@@ -361,7 +359,6 @@ function updatePhysics() {
         if (Math.abs(car.speed) < 0.01) car.speed = 0;
     }
 
-    // Steering Logic with Grass Recovery Compensation
     if (Math.abs(car.speed) > 0.05) {
         const turnDir = car.speed > 0 ? 1 : -1;
         const dynamicHandling = car.isOffTrack ? currentHandling * 1.5 : currentHandling; 
@@ -376,15 +373,12 @@ function updatePhysics() {
     car.x += car.vx;
     car.y += car.vy;
 
-    // Log tracking telemetry data for the active run frame loop
     currentLapHistory.push({ x: car.x, y: car.y, angle: car.angle });
 
-    // Step up ghost replay index counter
     if (bestLapHistory.length > 0 && ghostFrameIndex < bestLapHistory.length - 1) {
         ghostFrameIndex++;
     }
 
-    // Track Dynamic Corner Names
     let closestWaypoint = trackWaypoints[0];
     let minDist = Infinity;
     trackWaypoints.forEach(wp => {
@@ -396,7 +390,6 @@ function updatePhysics() {
     });
     cornerNameEl.innerText = closestWaypoint.name;
 
-    // Check Checkpoints
     checkpoints.forEach(cp => {
         const dist = Math.hypot(car.x - cp.x, car.y - cp.y);
         if (dist < cp.r) {
@@ -404,7 +397,6 @@ function updatePhysics() {
         }
     });
 
-    // Handle Finish Line Crossing
     if (car.x >= finishLine.x && car.x <= finishLine.x + finishLine.w &&
         car.y >= finishLine.y && car.y <= finishLine.y + finishLine.h) {
         
@@ -413,7 +405,6 @@ function updatePhysics() {
             lastLapTime = lapTime;
             lastLapEl.innerText = formatTime(lastLapTime);
 
-            // Trigger Payout if clean
             if (isLapClean) {
                 coins += 10;
                 walletEl.innerText = coins;
@@ -422,16 +413,12 @@ function updatePhysics() {
                 showFeedback("DIRTY LAP - NO COINS", "#ff3333");
             }
 
-            // Verify if record has been set
             if (!bestLapTime || lapTime < bestLapTime) {
                 bestLapTime = lapTime;
                 bestLapEl.innerText = formatTime(bestLapTime);
-                
-                // Commit telemetry history database array clone to ghost system memory map
                 bestLapHistory = [...currentLapHistory];
             }
             
-            // Clear layout run configs
             startTime = Date.now();
             passedCheckpoints.clear();
             currentLapHistory = [];
@@ -484,6 +471,89 @@ function updateShopUI() {
     }
 }
 
+// Custom function to draw your vector F1 design
+function drawF1Car(x, y, angle, primaryColor, isGhost) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    // Dynamic global alpha overlay for the Ghost car vs the live racer
+    ctx.globalAlpha = isGhost ? 0.25 : 1.0;
+
+    const w = car.w;
+    const h = car.h;
+
+    // 1. BLACK WHEELS AND AXLES (Drawn first so body sits cleanly on top)
+    ctx.fillStyle = '#000000';
+    if (isGhost) ctx.fillStyle = 'rgba(0, 176, 255, 0.4)'; // Blue tinted wheels for ghost
+
+    // Front Axle & Wheels
+    ctx.fillRect(w * 0.15, -h * 0.65, w * 0.18, h * 0.3); // Front Left Wheel
+    ctx.fillRect(w * 0.15, h * 0.35, w * 0.18, h * 0.3);  // Front Right Wheel
+    ctx.fillRect(w * 0.22, -h * 0.4, w * 0.04, h * 0.8);  // Front Structural Axle
+
+    // Rear Axle & Wheels
+    ctx.fillRect(-w * 0.4, -h * 0.65, w * 0.22, h * 0.35); // Rear Left Wheel
+    ctx.fillRect(-w * 0.4, h * 0.3, w * 0.22, h * 0.35);   // Rear Right Wheel
+    ctx.fillRect(-w * 0.3, -h * 0.4, w * 0.04, h * 0.8);   // Rear Structural Axle
+
+    // 2. MAIN LIVERY BODYWORK
+    ctx.fillStyle = primaryColor;
+    if (isGhost) {
+        ctx.fillStyle = 'rgba(0, 176, 255, 0.2)';
+        ctx.strokeStyle = 'rgba(0, 176, 255, 0.6)';
+        ctx.lineWidth = 1;
+    }
+
+    // Front Nose Nosecone Nose component
+    ctx.beginPath();
+    ctx.arc(w * 0.4, 0, h * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    if (isGhost) ctx.stroke();
+
+    // Central Structural Body Spine
+    ctx.fillRect(-w * 0.4, -h * 0.15, w * 0.8, h * 0.3);
+    if (isGhost) ctx.strokeRect(-w * 0.4, -h * 0.15, w * 0.8, h * 0.3);
+
+    // Front Wing
+    ctx.beginPath();
+    ctx.roundRect(w * 0.3, -h * 0.55, w * 0.08, h * 1.1, h * 0.1);
+    ctx.fill();
+    if (isGhost) ctx.stroke();
+
+    // Aerodynamic Triangular Sidepods
+    ctx.beginPath();
+    ctx.moveTo(w * 0.15, -h * 0.15); // Front intersection point
+    ctx.lineTo(w * 0.15, -h * 0.4);  // Outward wide flare
+    ctx.lineTo(-w * 0.2, -h * 0.4);  // Straight edge back
+    ctx.lineTo(-w * 0.2, -h * 0.15); // Inner return block
+    ctx.closePath();
+    ctx.fill();
+    if (isGhost) ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(w * 0.15, h * 0.15);
+    ctx.lineTo(w * 0.15, h * 0.4);
+    ctx.lineTo(-w * 0.2, h * 0.4);
+    ctx.lineTo(-w * 0.2, h * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    if (isGhost) ctx.stroke();
+
+    // Rear Wing Base Block
+    ctx.fillRect(-w * 0.5, -h * 0.5, w * 0.12, h * 1.0);
+    if (isGhost) ctx.strokeRect(-w * 0.5, -h * 0.5, w * 0.12, h * 1.0);
+
+    // 3. GLOSS BLACK COCKPIT POD
+    ctx.fillStyle = '#000000';
+    if (isGhost) ctx.fillStyle = 'rgba(0, 176, 255, 0.5)';
+    ctx.beginPath();
+    ctx.roundRect(-w * 0.05, -h * 0.15, w * 0.22, h * 0.3, h * 0.12);
+    ctx.fill();
+
+    ctx.restore();
+}
+
 function draw() {
     ctx.fillStyle = '#1b5e20';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -530,42 +600,15 @@ function draw() {
         else ctx.fillRect(finishLine.x + finishLine.w/2, finishLine.y + i, finishLine.w/2, 5);
     }
 
-    // --- DRAW GHOST CAR (IF RECORD EXISTS) ---
+    // --- DRAW GHOST CAR (Using your custom F1 blueprint layout in transparent blue) ---
     if (bestLapHistory.length > 0 && bestLapHistory[ghostFrameIndex]) {
         const ghost = bestLapHistory[ghostFrameIndex];
-        ctx.save();
-        ctx.translate(ghost.x, ghost.y);
-        ctx.rotate(ghost.angle);
-        
-        // Semi-transparent overlay styling for ghost chassis
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; 
-        ctx.strokeStyle = 'rgba(0, 176, 255, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.fillRect(-car.w / 2, -car.h / 2, car.w, car.h);
-        ctx.strokeRect(-car.w / 2, -car.h / 2, car.w, car.h);
-        ctx.restore();
+        drawF1Car(ghost.x, ghost.y, ghost.angle, '', true);
     }
 
-    // --- DRAW ACTIVE PLAYER CAR ---
-    ctx.save();
-    ctx.translate(car.x, car.y);
-    ctx.rotate(car.angle);
-
-    ctx.fillStyle = '#000';
-    ctx.fillRect(-car.w/2 + 2, -car.h/2 - 1, 4, 1);
-    ctx.fillRect(car.w/2 - 6, -car.h/2 - 1, 4, 1);
-    ctx.fillRect(-car.w/2 + 2, car.h/2, 4, 1);
-    ctx.fillRect(car.w/2 - 6, car.h/2, 4, 1);
-
-    ctx.fillStyle = car.isOffTrack ? '#ef5350' : '#00e676'; 
-    ctx.fillRect(-car.w / 2, -car.h / 2, car.w, car.h);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(1, -car.h/2 + 1, 3, car.h - 2);
-    ctx.fillStyle = '#111111';
-    ctx.fillRect(-4, -car.h/2 + 1, 5, car.h - 2);
-
-    ctx.restore();
+    // --- DRAW ACTIVE PLAYER CAR (Using your custom F1 blueprint layout in racing colors) ---
+    const activeColor = car.isOffTrack ? '#ef5350' : '#ff0000'; // Pure F1 red on track, light warning red on grass
+    drawF1Car(car.x, car.y, car.angle, activeColor, false);
 }
 
 function gameLoop() {
